@@ -101,23 +101,37 @@ def predict():
     try:
         data = request.get_json()
 
-        # Validar que hay 12 entradas
-        if len(data) != 12:
-            return jsonify({"error": "Se esperaban 12 variables numéricas"}), 400
+        # Extraer los valores en el orden correcto
+        features = np.array([
+            float(data.get("koi_period", 0)),
+            float(data.get("koi_impact", 0)),
+            float(data.get("koi_duration", 0)),
+            float(data.get("koi_depth", 0)),
+            float(data.get("koi_ror", 0)),
+            float(data.get("koi_srho", 0)),
+            float(data.get("koi_prad", 0)),
+            float(data.get("koi_sma", 0)),
+            float(data.get("koi_teq", 0)),
+            float(data.get("koi_insol", 0)),
+            float(data.get("koi_dor", 0)),
+            float(data.get("koi_model_snr", 0)),
+            float(data.get("koi_steff", 0)),
+            float(data.get("koi_slogg", 0)),
+            float(data.get("koi_srad", 0))
+        ]).reshape(1, -1)
 
-        df = pd.DataFrame([data])
-        X_std = scaler.transform(df)
-        y_pred = (model.predict(X_std) > 0.5).astype(int).flatten()[0]
-        result = inv_label_map[y_pred]
+        # Hacer la predicción
+        prediction = model.predict(features)[0]
 
-        return jsonify({
-            "prediction": result,
-            "details": {
-                "numeric_output": int(y_pred)
-            }
-        })
+        # Convertir a formato que espera el frontend
+        if prediction == "Confirmed":
+            return jsonify({"prediction": 1, "is_exoplanet": True})
+        else:
+            return jsonify({"prediction": 0, "is_exoplanet": False})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
