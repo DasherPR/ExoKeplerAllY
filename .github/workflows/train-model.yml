@@ -1,47 +1,48 @@
-name: Entrenamiento automático de modelo
+name: Automatic Model Training
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:       # <- Allows manual/API trigger
   schedule:
-    - cron: '0 0 * * 0'  # ejecuta cada domingo a medianoche
+    - cron: '0 0 * * 0'    # runs every Sunday at midnight
 
 jobs:
   train_model:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Configurar Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install imbalanced-learn tensorflow joblib
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install imbalanced-learn tensorflow joblib
 
-    - name: Run training
-      run: python train.py
+      - name: Run training
+        run: python train.py
 
-    - name: Save model and files
-      uses: actions/upload-artifact@v4
-      with:
-        name: trained-model
-        path: |
-          best_deep_model.h5
-          scaler.pkl
-          label_map.pkl
-          
-    - name: Create/Update Release
-      uses: ncipollo/release-action@v1
-      with:
-        tag: latest
-        name: Latest Trained Model
-        artifacts: best_deep_model.h5,scaler.pkl,label_map.pkl
-        draft: false
-        prerelease: false
+      - name: Upload model and files as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-model
+          path: |
+            best_deep_model.h5
+            scaler.pkl
+            label_map.pkl
+
+      - name: Create/Update Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest
+          name: Latest Trained Model
+          artifacts: best_deep_model.h5,scaler.pkl,label_map.pkl
+          draft: false
+          prerelease: false
