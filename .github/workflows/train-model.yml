@@ -1,0 +1,38 @@
+name: Entrenamiento automático de modelo
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * 0'  # ejecuta cada domingo a medianoche
+
+jobs:
+  train_model:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install imbalanced-learn tensorflow joblib
+
+    - name: Run training
+      run: python train.py
+
+    - name: Save model and files
+      uses: actions/upload-artifact@v3
+      with:
+        name: trained-model
+        path: |
+          best_deep_model.h5
+          scaler.pkl
+          label_map.pkl
