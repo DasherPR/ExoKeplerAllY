@@ -36,3 +36,12 @@ jobs:
           best_deep_model.h5
           scaler.pkl
           label_map.pkl
+          
+    - name: Create/Update Release
+      uses: ncipollo/release-action@v1
+      with:
+        tag: latest
+        name: Latest Trained Model
+        artifacts: best_deep_model.h5,scaler.pkl,label_map.pkl
+        draft: false
+        prerelease: false
