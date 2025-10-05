@@ -41,7 +41,7 @@ jobs:
       - name: Create/Update Release
         uses: ncipollo/release-action@v1
         with:
-          tag: latest
+          token: ${{ secrets.RELEASE_TOKEN }}
           name: Latest Trained Model
           artifacts: best_deep_model.h5,scaler.pkl,label_map.pkl
           draft: false
