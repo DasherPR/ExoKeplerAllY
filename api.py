@@ -1,95 +1,123 @@
-# api.py
-import os
-import time
-import joblib
-import requests
-import numpy as np
-import pandas as pd
-from io import StringIO
-from tensorflow.keras.models import load_model
 from flask import Flask, request, jsonify
+import requests
+import joblib
+import pandas as pd
+import numpy as np
+from tensorflow.keras.models import load_model
+from io import StringIO
+import os
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
 
-# -----------------------------
-# 1️⃣ Configuración básica
-# -----------------------------
 app = Flask(__name__)
 
+# Parámetros de tu repo
 REPO_OWNER = "DasherPR"
 REPO_NAME = "ExoKeplerAllY"
 
-MODEL_FILES = {
-    "best_deep_model.h5": f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/latest/download/best_deep_model.h5",
-    "scaler.pkl": f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/latest/download/scaler.pkl",
-    "label_map.pkl": f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/latest/download/label_map.pkl",
+# URLs para descargar artefactos
+urls = {
+    "model": f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/latest/download/best_deep_model.h5",
+    "scaler": f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/latest/download/scaler.pkl",
+    "label_map": f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/latest/download/label_map.pkl",
+    "dataset": f"https://raw.githubusercontent.com/{REPO_OWNER}/{REPO_NAME}/main/planets.csv"
 }
 
 # -----------------------------
-# 2️⃣ Descargar artefactos si no existen
+# Descarga y carga inicial
 # -----------------------------
-def ensure_files_downloaded():
-    for filename, url in MODEL_FILES.items():
+def download_if_missing():
+    for name, url in urls.items():
+        if name == "dataset":
+            continue
+        filename = url.split("/")[-1]
         if not os.path.exists(filename):
-            print(f"Descargando {filename} desde {url} ...")
-            r = requests.get(url)
+            print(f"Descargando {filename} ...")
+            r = requests.get(url, stream=True)
             with open(filename, "wb") as f:
-                f.write(r.content)
-            print(f"{filename} descargado correctamente")
-        else:
-            print(f"{filename} ya existe, omitiendo descarga")
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            print(f"{filename} descargado.")
+
+download_if_missing()
+
+print("Cargando artefactos...")
+model = load_model("best_deep_model.h5")
+scaler = joblib.load("scaler.pkl")
+label_map = joblib.load("label_map.pkl")
+inv_label_map = {v: k for k, v in label_map.items()}
+
+print("Artefactos cargados correctamente ✅")
 
 # -----------------------------
-# 3️⃣ Cargar modelo y utilidades
+# Cargar dataset y calcular métricas
 # -----------------------------
-def load_artifacts():
-    global model, scaler, label_map
-    ensure_files_downloaded()
+def calcular_metricas():
+    print("Descargando dataset para métricas...")
+    r = requests.get(urls["dataset"])
+    df = pd.read_csv(StringIO(r.text))
+    df = df[df["koi_disposition"] != "CANDIDATE"]
 
-    print("Cargando modelo y utilidades...")
-    model = load_model("best_deep_model.h5")
-    scaler = joblib.load("scaler.pkl")
-    label_map = joblib.load("label_map.pkl")
+    X_test = df.drop("koi_disposition", axis=1)
+    y_test = df["koi_disposition"].map(label_map).to_numpy()
 
-    # Invertir mapa de etiquetas
-    global inv_label_map
-    inv_label_map = {v: k for k, v in label_map.items()}
-    print("Modelo y escalador cargados correctamente")
+    X_test_std = scaler.transform(X_test)
+    y_pred = (model.predict(X_test_std) > 0.5).astype(int).flatten()
+
+    acc = accuracy_score(y_test, y_pred)
+    prec = precision_score(y_test, y_pred)
+    rec = recall_score(y_test, y_pred)
+    f1 = f1_score(y_test, y_pred)
+
+    return {
+        "accuracy": round(acc, 4),
+        "precision": round(prec, 4),
+        "recall": round(rec, 4),
+        "f1_score": round(f1, 4)
+    }
+
+# Cachear métricas al iniciar
+metricas_globales = calcular_metricas()
 
 # -----------------------------
-# 4️⃣ Endpoint de prueba
+# Rutas de la API
 # -----------------------------
-@app.route("/", methods=["GET"])
+@app.route('/')
 def home():
-    return jsonify({"status": "API activa", "message": "Bienvenido a ExoKeplerAllY API"}), 200
+    return jsonify({
+        "message": "Bienvenido a ExoKeplerAllY API",
+        "status": "API activa",
+        "endpoints": {
+            "/metrics": "Devuelve las métricas del modelo actual",
+            "/predict": "Envía 12 valores de entrada para predecir si es exoplaneta"
+        }
+    })
 
-# -----------------------------
-# 5️⃣ Endpoint para predicciones
-# -----------------------------
-@app.route("/predict", methods=["POST"])
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    return jsonify(metricas_globales)
+
+@app.route('/predict', methods=['POST'])
 def predict():
     try:
-        # Obtener datos del cuerpo de la solicitud
         data = request.get_json()
-        if not data or "values" not in data:
-            return jsonify({"error": "Debes enviar un JSON con la clave 'values' y una lista de 15 números."}), 400
 
-        features = np.array(data["values"]).reshape(1, -1)
+        # Validar que hay 12 entradas
+        if len(data) != 12:
+            return jsonify({"error": "Se esperaban 12 variables numéricas"}), 400
 
-        # Escalar y predecir
-        features_scaled = scaler.transform(features)
-        pred = (model.predict(features_scaled) > 0.5).astype(int).flatten()[0]
-        label = inv_label_map[pred]
+        df = pd.DataFrame([data])
+        X_std = scaler.transform(df)
+        y_pred = (model.predict(X_std) > 0.5).astype(int).flatten()[0]
+        result = inv_label_map[y_pred]
 
         return jsonify({
-            "prediction": int(pred),
-            "label": label,
-            "message": f"El objeto parece ser: {label}"
+            "prediction": result,
+            "details": {
+                "numeric_output": int(y_pred)
+            }
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# -----------------------------
-# 6️⃣ Iniciar servidor
-# -----------------------------
-if __name__ == "__main__":
-    load_artifacts()
-    app.run(host="0.0.0.0", port=5000)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
