@@ -4,3 +4,6 @@ scikit-learn
 imbalanced-learn
 tensorflow
 joblib
+flask
+gunicorn
+
