@@ -38,11 +38,15 @@ jobs:
             scaler.pkl
             label_map.pkl
 
-      - name: Create/Update Release
+      - name: Create or update release
         uses: ncipollo/release-action@v1
         with:
-          token: ${{ secrets.RELEASE_TOKEN }}
+          tag: latest
+          allowUpdates: true
+          replacesArtifacts: true
           name: Latest Trained Model
           artifacts: best_deep_model.h5,scaler.pkl,label_map.pkl
+          token: ${{ secrets.RELEASE_TOKEN }}
           draft: false
           prerelease: false
+
