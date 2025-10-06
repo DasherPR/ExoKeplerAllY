@@ -6,4 +6,6 @@ tensorflow
 joblib
 flask
 gunicorn
+flask-cors
+
 
