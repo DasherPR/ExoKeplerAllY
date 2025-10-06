@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 import joblib
 import pandas as pd
@@ -9,6 +10,8 @@ import os
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
 
 app = Flask(__name__)
+# Permitir CORS solo desde tu dominio frontend
+CORS(app, origins=["https://exokeplerally.space"])
 
 # Parámetros de tu repo
 REPO_OWNER = "DasherPR"
@@ -127,7 +130,6 @@ def predict():
         pred_value = pred_raw[0]
         # Si tu modelo retorna probabilidades y se usa umbral 0.5:
         # Confirmado si pred_value > 0.5
-        # Ajusta esto según sea tu modelo (por ejemplo, si retornaba una clase/string antes)
 
         is_exoplanet = bool(pred_value > 0.5)
         return jsonify({
