@@ -88,7 +88,7 @@ def home():
         "status": "API activa",
         "endpoints": {
             "/metrics": "Devuelve las métricas del modelo actual",
-            "/predict": "Envía 12 valores de entrada para predecir si es exoplaneta"
+            "/predict": "Envía 15 valores de entrada para predecir si es exoplaneta"
         }
     })
 
@@ -120,18 +120,24 @@ def predict():
             float(data.get("koi_srad", 0))
         ]).reshape(1, -1)
 
-        # Hacer la predicción
-        prediction = model.predict(features)[0]
+        # --------- ESCALAR LOS DATOS ---------
+        features_std = scaler.transform(features)
+        # Hacer la predicción CON DATOS ESCALADOS
+        pred_raw = model.predict(features_std)
+        pred_value = pred_raw[0]
+        # Si tu modelo retorna probabilidades y se usa umbral 0.5:
+        # Confirmado si pred_value > 0.5
+        # Ajusta esto según sea tu modelo (por ejemplo, si retornaba una clase/string antes)
 
-        # Convertir a formato que espera el frontend
-        if prediction == "Confirmed":
-            return jsonify({"prediction": 1, "is_exoplanet": True})
-        else:
-            return jsonify({"prediction": 0, "is_exoplanet": False})
+        is_exoplanet = bool(pred_value > 0.5)
+        return jsonify({
+            "prediction": int(is_exoplanet),
+            "is_exoplanet": is_exoplanet,
+            "score": float(pred_value)
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
